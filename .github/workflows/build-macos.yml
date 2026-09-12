@@ -41,6 +41,7 @@ jobs:
           cd ffmpeg
           ./configure $FF_CONFIGURE \
             --arch=x86_64 \
+            --cc=clang \
             --extra-cflags="-arch x86_64 -mmacosx-version-min=10.15" \
             --extra-ldflags="-arch x86_64 -mmacosx-version-min=10.15" \
             --prefix="${GITHUB_WORKSPACE}/output-x64"
@@ -49,14 +50,28 @@ jobs:
         run: |
           set -euo pipefail
           cd ffmpeg
-          # 单线程编译，避免 macOS runner OOM
-          make -j1 V=0
+          echo "=== System memory ==="
+          sysctl hw.memsize
+          vm_stat
+          echo "=== Starting make ==="
+          # 临时关闭 set -e 以捕获 make 退出码
+          set +e
+          make -j1 V=1 2>&1 | tail -100
+          MAKE_EXIT=$?
+          set -e
+          echo "=== make exit code: $MAKE_EXIT ==="
+          if [ $MAKE_EXIT -ne 0 ]; then
+            echo "=== make failed! Printing config.log tail ==="
+            tail -50 ffbuild/config.log || true
+            exit $MAKE_EXIT
+          fi
+          echo "=== make install ==="
           make install
-          # 显式检查二进制是否存在
-          test -f "${GITHUB_WORKSPACE}/output-x64/bin/ffmpeg" || (echo "ERROR: ffmpeg not built!" && exit 1)
-          test -f "${GITHUB_WORKSPACE}/output-x64/bin/ffprobe" || (echo "ERROR: ffprobe not built!" && exit 1)
-          echo "Build successful!"
+          echo "=== Checking binaries ==="
           ls -lh "${GITHUB_WORKSPACE}/output-x64/bin/"
+          test -f "${GITHUB_WORKSPACE}/output-x64/bin/ffmpeg"
+          test -f "${GITHUB_WORKSPACE}/output-x64/bin/ffprobe"
+          echo "=== Build successful! ==="
 
       - name: Verify and package
         run: |
@@ -100,6 +115,7 @@ jobs:
           cd ffmpeg
           ./configure $FF_CONFIGURE \
             --arch=arm64 \
+            --cc=clang \
             --extra-cflags="-arch arm64 -mmacosx-version-min=11.0" \
             --extra-ldflags="-arch arm64 -mmacosx-version-min=11.0" \
             --prefix="${GITHUB_WORKSPACE}/output-arm64"
@@ -108,14 +124,28 @@ jobs:
         run: |
           set -euo pipefail
           cd ffmpeg
-          # 单线程编译，避免 macOS runner OOM
-          make -j1 V=0
+          echo "=== System memory ==="
+          sysctl hw.memsize
+          vm_stat
+          echo "=== Starting make ==="
+          # 临时关闭 set -e 以捕获 make 退出码
+          set +e
+          make -j1 V=1 2>&1 | tail -100
+          MAKE_EXIT=$?
+          set -e
+          echo "=== make exit code: $MAKE_EXIT ==="
+          if [ $MAKE_EXIT -ne 0 ]; then
+            echo "=== make failed! Printing config.log tail ==="
+            tail -50 ffbuild/config.log || true
+            exit $MAKE_EXIT
+          fi
+          echo "=== make install ==="
           make install
-          # 显式检查二进制是否存在
-          test -f "${GITHUB_WORKSPACE}/output-arm64/bin/ffmpeg" || (echo "ERROR: ffmpeg not built!" && exit 1)
-          test -f "${GITHUB_WORKSPACE}/output-arm64/bin/ffprobe" || (echo "ERROR: ffprobe not built!" && exit 1)
-          echo "Build successful!"
+          echo "=== Checking binaries ==="
           ls -lh "${GITHUB_WORKSPACE}/output-arm64/bin/"
+          test -f "${GITHUB_WORKSPACE}/output-arm64/bin/ffmpeg"
+          test -f "${GITHUB_WORKSPACE}/output-arm64/bin/ffprobe"
+          echo "=== Build successful! ==="
 
       - name: Verify and package
         run: |
