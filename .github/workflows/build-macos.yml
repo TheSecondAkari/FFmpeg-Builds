@@ -51,11 +51,11 @@ jobs:
 
       - name: Verify and package
         run: |
-          file output-x64/bin/ffmpeg
+          file output-x64/bin/ffmpeg output-x64/bin/ffprobe
           mkdir -p pkg
-          cp output-x64/bin/ffmpeg pkg/
+          cp output-x64/bin/ffmpeg output-x64/bin/ffprobe pkg/
           cd pkg
-          zip -r "${GITHUB_WORKSPACE}/ffmpeg-macos-x64.zip" ffmpeg
+          zip -r "${GITHUB_WORKSPACE}/ffmpeg-macos-x64.zip" ffmpeg ffprobe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -100,11 +100,11 @@ jobs:
 
       - name: Verify and package
         run: |
-          file output-arm64/bin/ffmpeg
+          file output-arm64/bin/ffmpeg output-arm64/bin/ffprobe
           mkdir -p pkg
-          cp output-arm64/bin/ffmpeg pkg/
+          cp output-arm64/bin/ffmpeg output-arm64/bin/ffprobe pkg/
           cd pkg
-          zip -r "${GITHUB_WORKSPACE}/ffmpeg-macos-arm64.zip" ffmpeg
+          zip -r "${GITHUB_WORKSPACE}/ffmpeg-macos-arm64.zip" ffmpeg ffprobe
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
@@ -127,26 +127,29 @@ jobs:
           mkdir -p universal
           unzip -o artifacts/ffmpeg-macos-x64/ffmpeg-macos-x64.zip -d /tmp/x64
           unzip -o artifacts/ffmpeg-macos-arm64/ffmpeg-macos-arm64.zip -d /tmp/arm64
-          echo "=== x64 binary info ==="
-          lipo -info /tmp/x64/ffmpeg
-          echo "=== arm64 binary info ==="
-          lipo -info /tmp/arm64/ffmpeg
-          echo "=== Merging ==="
+          echo "=== x64 binaries ==="
+          lipo -info /tmp/x64/ffmpeg /tmp/x64/ffprobe
+          echo "=== arm64 binaries ==="
+          lipo -info /tmp/arm64/ffmpeg /tmp/arm64/ffprobe
+          echo "=== Merging ffmpeg ==="
           lipo -create /tmp/x64/ffmpeg /tmp/arm64/ffmpeg -output universal/ffmpeg
-          echo "=== Universal binary info ==="
-          lipo -info universal/ffmpeg
-          file universal/ffmpeg
+          echo "=== Merging ffprobe ==="
+          lipo -create /tmp/x64/ffprobe /tmp/arm64/ffprobe -output universal/ffprobe
+          echo "=== Universal binaries ==="
+          lipo -info universal/ffmpeg universal/ffprobe
+          file universal/ffmpeg universal/ffprobe
 
       - name: Test run
         run: |
           ./universal/ffmpeg -version
+          ./universal/ffprobe -version
           ./universal/ffmpeg -decoders | head -20
           ./universal/ffmpeg -encoders
 
       - name: Package universal binary
         run: |
           cd universal
-          zip -r "${GITHUB_WORKSPACE}/ffmpeg-macos-universal.zip" ffmpeg
+          zip -r "${GITHUB_WORKSPACE}/ffmpeg-macos-universal.zip" ffmpeg ffprobe
           ls -lh "${GITHUB_WORKSPACE}/ffmpeg-macos-universal.zip"
 
       - name: Upload universal artifact
@@ -173,6 +176,6 @@ jobs:
           NAME="macOS Build $RELDATE"
           TAGNAME="macos-build-$(date +'%Y-%m-%d-%H-%M')"
           (cd release && sha256sum *.zip > checksums.sha256)
-          gh release create "$TAGNAME" --target "master" --title "$NAME" --notes "macOS universal FFmpeg build" release/*.zip release/checksums.sha256
+          gh release create "$TAGNAME" --target "master" --title "$NAME" --notes "macOS universal FFmpeg build (ffmpeg + ffprobe)" release/*.zip release/checksums.sha256
         env:
           GITHUB_TOKEN: ${{ github.token }}
