@@ -50,19 +50,15 @@ jobs:
         run: |
           set -euo pipefail
           cd ffmpeg
-          echo "=== System memory ==="
-          sysctl hw.memsize
-          vm_stat
           echo "=== Starting make ==="
-          # 临时关闭 set -e 以捕获 make 退出码
           set +e
-          make -j1 V=1 2>&1 | tail -100
+          make -j1 > build.log 2>&1
           MAKE_EXIT=$?
           set -e
           echo "=== make exit code: $MAKE_EXIT ==="
           if [ $MAKE_EXIT -ne 0 ]; then
-            echo "=== make failed! Printing config.log tail ==="
-            tail -50 ffbuild/config.log || true
+            echo "=== make failed! Last 100 lines of build.log ==="
+            tail -100 build.log
             exit $MAKE_EXIT
           fi
           echo "=== make install ==="
@@ -124,19 +120,15 @@ jobs:
         run: |
           set -euo pipefail
           cd ffmpeg
-          echo "=== System memory ==="
-          sysctl hw.memsize
-          vm_stat
           echo "=== Starting make ==="
-          # 临时关闭 set -e 以捕获 make 退出码
           set +e
-          make -j1 V=1 2>&1 | tail -100
+          make -j1 > build.log 2>&1
           MAKE_EXIT=$?
           set -e
           echo "=== make exit code: $MAKE_EXIT ==="
           if [ $MAKE_EXIT -ne 0 ]; then
-            echo "=== make failed! Printing config.log tail ==="
-            tail -50 ffbuild/config.log || true
+            echo "=== make failed! Last 100 lines of build.log ==="
+            tail -100 build.log
             exit $MAKE_EXIT
           fi
           echo "=== make install ==="
