@@ -27,7 +27,7 @@ jobs:
 
       - name: Load config and download FFmpeg
         run: |
-          set -e
+          set -euo pipefail
           source ffmpeg-custom-config.sh
           echo "FFmpeg version: $FFMPEG_VERSION"
           curl -L -o ffmpeg.tar.xz "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz"
@@ -36,7 +36,7 @@ jobs:
 
       - name: Configure
         run: |
-          set -e
+          set -euo pipefail
           source ffmpeg-custom-config.sh
           cd ffmpeg
           ./configure $FF_CONFIGURE \
@@ -47,16 +47,20 @@ jobs:
 
       - name: Build
         run: |
-          set -e
+          set -euo pipefail
           cd ffmpeg
-          # 限制并行数为2，防止 macOS runner OOM
-          make -j2
+          # 单线程编译，避免 macOS runner OOM
+          make -j1 V=0
           make install
+          # 显式检查二进制是否存在
+          test -f "${GITHUB_WORKSPACE}/output-x64/bin/ffmpeg" || (echo "ERROR: ffmpeg not built!" && exit 1)
+          test -f "${GITHUB_WORKSPACE}/output-x64/bin/ffprobe" || (echo "ERROR: ffprobe not built!" && exit 1)
+          echo "Build successful!"
+          ls -lh "${GITHUB_WORKSPACE}/output-x64/bin/"
 
       - name: Verify and package
         run: |
-          set -e
-          ls -lh output-x64/bin/
+          set -euo pipefail
           file output-x64/bin/ffmpeg output-x64/bin/ffprobe
           mkdir -p pkg
           cp output-x64/bin/ffmpeg output-x64/bin/ffprobe pkg/
@@ -82,7 +86,7 @@ jobs:
 
       - name: Load config and download FFmpeg
         run: |
-          set -e
+          set -euo pipefail
           source ffmpeg-custom-config.sh
           echo "FFmpeg version: $FFMPEG_VERSION"
           curl -L -o ffmpeg.tar.xz "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz"
@@ -91,7 +95,7 @@ jobs:
 
       - name: Configure
         run: |
-          set -e
+          set -euo pipefail
           source ffmpeg-custom-config.sh
           cd ffmpeg
           ./configure $FF_CONFIGURE \
@@ -102,16 +106,20 @@ jobs:
 
       - name: Build
         run: |
-          set -e
+          set -euo pipefail
           cd ffmpeg
-          # 限制并行数为2，防止 macOS runner OOM
-          make -j2
+          # 单线程编译，避免 macOS runner OOM
+          make -j1 V=0
           make install
+          # 显式检查二进制是否存在
+          test -f "${GITHUB_WORKSPACE}/output-arm64/bin/ffmpeg" || (echo "ERROR: ffmpeg not built!" && exit 1)
+          test -f "${GITHUB_WORKSPACE}/output-arm64/bin/ffprobe" || (echo "ERROR: ffprobe not built!" && exit 1)
+          echo "Build successful!"
+          ls -lh "${GITHUB_WORKSPACE}/output-arm64/bin/"
 
       - name: Verify and package
         run: |
-          set -e
-          ls -lh output-arm64/bin/
+          set -euo pipefail
           file output-arm64/bin/ffmpeg output-arm64/bin/ffprobe
           mkdir -p pkg
           cp output-arm64/bin/ffmpeg output-arm64/bin/ffprobe pkg/
@@ -136,7 +144,7 @@ jobs:
 
       - name: Extract and merge with lipo
         run: |
-          set -e
+          set -euo pipefail
           mkdir -p universal
           unzip -o artifacts/ffmpeg-macos-x64/ffmpeg-macos-x64.zip -d /tmp/x64
           unzip -o artifacts/ffmpeg-macos-arm64/ffmpeg-macos-arm64.zip -d /tmp/arm64
@@ -155,7 +163,7 @@ jobs:
 
       - name: Test run
         run: |
-          set -e
+          set -euo pipefail
           ./universal/ffmpeg -version
           ./universal/ffprobe -version
           ./universal/ffmpeg -decoders
@@ -163,7 +171,7 @@ jobs:
 
       - name: Package universal binary
         run: |
-          set -e
+          set -euo pipefail
           cd universal
           zip -r "${GITHUB_WORKSPACE}/ffmpeg-macos-universal.zip" ffmpeg ffprobe
           ls -lh "${GITHUB_WORKSPACE}/ffmpeg-macos-universal.zip"
