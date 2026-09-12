@@ -1,0 +1,178 @@
+name: Build FFmpeg (macOS Universal)
+
+on:
+  push:
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
+  workflow_dispatch:
+    inputs:
+      doRelease:
+        description: 'Publish new release'
+        type: boolean
+        default: false
+        required: false
+
+jobs:
+  build_x64:
+    name: Build macOS x86_64
+    runs-on: macos-13
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          brew install nasm pkg-config
+
+      - name: Load config and download FFmpeg
+        run: |
+          source ffmpeg-custom-config.sh
+          echo "FFmpeg version: $FFMPEG_VERSION"
+          curl -L -o ffmpeg.tar.xz "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz"
+          tar xf ffmpeg.tar.xz
+          mv "ffmpeg-${FFMPEG_VERSION}" ffmpeg
+
+      - name: Configure
+        run: |
+          source ffmpeg-custom-config.sh
+          cd ffmpeg
+          ./configure $FF_CONFIGURE \
+            --arch=x86_64 \
+            --extra-cflags="-arch x86_64 -mmacosx-version-min=10.15" \
+            --extra-ldflags="-arch x86_64 -mmacosx-version-min=10.15" \
+            --prefix="${GITHUB_WORKSPACE}/output-x64"
+
+      - name: Build
+        run: |
+          cd ffmpeg
+          make -j$(sysctl -n hw.ncpu)
+          make install
+
+      - name: Verify and package
+        run: |
+          file output-x64/bin/ffmpeg
+          mkdir -p pkg
+          cp output-x64/bin/ffmpeg pkg/
+          cd pkg
+          zip -r "${GITHUB_WORKSPACE}/ffmpeg-macos-x64.zip" ffmpeg
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ffmpeg-macos-x64
+          path: ffmpeg-macos-x64.zip
+
+  build_arm64:
+    name: Build macOS arm64
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install dependencies
+        run: |
+          brew install nasm pkg-config
+
+      - name: Load config and download FFmpeg
+        run: |
+          source ffmpeg-custom-config.sh
+          echo "FFmpeg version: $FFMPEG_VERSION"
+          curl -L -o ffmpeg.tar.xz "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz"
+          tar xf ffmpeg.tar.xz
+          mv "ffmpeg-${FFMPEG_VERSION}" ffmpeg
+
+      - name: Configure
+        run: |
+          source ffmpeg-custom-config.sh
+          cd ffmpeg
+          ./configure $FF_CONFIGURE \
+            --arch=arm64 \
+            --extra-cflags="-arch arm64 -mmacosx-version-min=11.0" \
+            --extra-ldflags="-arch arm64 -mmacosx-version-min=11.0" \
+            --prefix="${GITHUB_WORKSPACE}/output-arm64"
+
+      - name: Build
+        run: |
+          cd ffmpeg
+          make -j$(sysctl -n hw.ncpu)
+          make install
+
+      - name: Verify and package
+        run: |
+          file output-arm64/bin/ffmpeg
+          mkdir -p pkg
+          cp output-arm64/bin/ffmpeg pkg/
+          cd pkg
+          zip -r "${GITHUB_WORKSPACE}/ffmpeg-macos-arm64.zip" ffmpeg
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ffmpeg-macos-arm64
+          path: ffmpeg-macos-arm64.zip
+
+  merge_universal:
+    name: Merge Universal Binary
+    needs: [build_x64, build_arm64]
+    runs-on: macos-14
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+
+      - name: Extract and merge with lipo
+        run: |
+          mkdir -p universal
+          unzip -o artifacts/ffmpeg-macos-x64/ffmpeg-macos-x64.zip -d /tmp/x64
+          unzip -o artifacts/ffmpeg-macos-arm64/ffmpeg-macos-arm64.zip -d /tmp/arm64
+          echo "=== x64 binary info ==="
+          lipo -info /tmp/x64/ffmpeg
+          echo "=== arm64 binary info ==="
+          lipo -info /tmp/arm64/ffmpeg
+          echo "=== Merging ==="
+          lipo -create /tmp/x64/ffmpeg /tmp/arm64/ffmpeg -output universal/ffmpeg
+          echo "=== Universal binary info ==="
+          lipo -info universal/ffmpeg
+          file universal/ffmpeg
+
+      - name: Test run
+        run: |
+          ./universal/ffmpeg -version
+          ./universal/ffmpeg -decoders | head -20
+          ./universal/ffmpeg -encoders
+
+      - name: Package universal binary
+        run: |
+          cd universal
+          zip -r "${GITHUB_WORKSPACE}/ffmpeg-macos-universal.zip" ffmpeg
+          ls -lh "${GITHUB_WORKSPACE}/ffmpeg-macos-universal.zip"
+
+      - name: Upload universal artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: ffmpeg-macos-universal
+          path: ffmpeg-macos-universal.zip
+
+  publish_release:
+    name: Publish release
+    if: ${{ !cancelled() && github.event.inputs.doRelease == 'true' && needs.merge_universal.result == 'success' }}
+    needs: merge_universal
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download universal artifact
+        uses: actions/download-artifact@v8
+        with:
+          name: ffmpeg-macos-universal
+          path: release
+      - name: Create release
+        run: |
+          set -xe
+          RELDATE="$(date +'%Y-%m-%d %H:%M')"
+          NAME="macOS Build $RELDATE"
+          TAGNAME="macos-build-$(date +'%Y-%m-%d-%H-%M')"
+          (cd release && sha256sum *.zip > checksums.sha256)
+          gh release create "$TAGNAME" --target "master" --title "$NAME" --notes "macOS universal FFmpeg build" release/*.zip release/checksums.sha256
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
