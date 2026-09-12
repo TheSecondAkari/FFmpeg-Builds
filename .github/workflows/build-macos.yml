@@ -27,6 +27,7 @@ jobs:
 
       - name: Load config and download FFmpeg
         run: |
+          set -e
           source ffmpeg-custom-config.sh
           echo "FFmpeg version: $FFMPEG_VERSION"
           curl -L -o ffmpeg.tar.xz "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz"
@@ -35,6 +36,7 @@ jobs:
 
       - name: Configure
         run: |
+          set -e
           source ffmpeg-custom-config.sh
           cd ffmpeg
           ./configure $FF_CONFIGURE \
@@ -45,12 +47,16 @@ jobs:
 
       - name: Build
         run: |
+          set -e
           cd ffmpeg
-          make -j$(sysctl -n hw.ncpu)
+          # 限制并行数为2，防止 macOS runner OOM
+          make -j2
           make install
 
       - name: Verify and package
         run: |
+          set -e
+          ls -lh output-x64/bin/
           file output-x64/bin/ffmpeg output-x64/bin/ffprobe
           mkdir -p pkg
           cp output-x64/bin/ffmpeg output-x64/bin/ffprobe pkg/
@@ -76,6 +82,7 @@ jobs:
 
       - name: Load config and download FFmpeg
         run: |
+          set -e
           source ffmpeg-custom-config.sh
           echo "FFmpeg version: $FFMPEG_VERSION"
           curl -L -o ffmpeg.tar.xz "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz"
@@ -84,6 +91,7 @@ jobs:
 
       - name: Configure
         run: |
+          set -e
           source ffmpeg-custom-config.sh
           cd ffmpeg
           ./configure $FF_CONFIGURE \
@@ -94,12 +102,16 @@ jobs:
 
       - name: Build
         run: |
+          set -e
           cd ffmpeg
-          make -j$(sysctl -n hw.ncpu)
+          # 限制并行数为2，防止 macOS runner OOM
+          make -j2
           make install
 
       - name: Verify and package
         run: |
+          set -e
+          ls -lh output-arm64/bin/
           file output-arm64/bin/ffmpeg output-arm64/bin/ffprobe
           mkdir -p pkg
           cp output-arm64/bin/ffmpeg output-arm64/bin/ffprobe pkg/
@@ -124,6 +136,7 @@ jobs:
 
       - name: Extract and merge with lipo
         run: |
+          set -e
           mkdir -p universal
           unzip -o artifacts/ffmpeg-macos-x64/ffmpeg-macos-x64.zip -d /tmp/x64
           unzip -o artifacts/ffmpeg-macos-arm64/ffmpeg-macos-arm64.zip -d /tmp/arm64
@@ -138,16 +151,19 @@ jobs:
           echo "=== Universal binaries ==="
           lipo -info universal/ffmpeg universal/ffprobe
           file universal/ffmpeg universal/ffprobe
+          ls -lh universal/
 
       - name: Test run
         run: |
+          set -e
           ./universal/ffmpeg -version
           ./universal/ffprobe -version
-          ./universal/ffmpeg -decoders | head -20
+          ./universal/ffmpeg -decoders
           ./universal/ffmpeg -encoders
 
       - name: Package universal binary
         run: |
+          set -e
           cd universal
           zip -r "${GITHUB_WORKSPACE}/ffmpeg-macos-universal.zip" ffmpeg ffprobe
           ls -lh "${GITHUB_WORKSPACE}/ffmpeg-macos-universal.zip"
