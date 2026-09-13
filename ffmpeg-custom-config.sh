@@ -35,6 +35,7 @@ export FF_CONFIGURE="
 --disable-encoders
 --enable-encoder=mp3
 --enable-encoder=aac
+--enable-encoder=flac
 --disable-demuxers
 --enable-demuxer=concat
 --enable-demuxer=mov
@@ -45,6 +46,8 @@ export FF_CONFIGURE="
 --enable-muxer=flv
 --enable-muxer=mp4
 --enable-muxer=mp3
+--enable-muxer=ipod
+--enable-muxer=flac
 --disable-parsers
 --enable-parser=h264
 --enable-parser=hevc
@@ -62,3 +65,4 @@ export FF_CONFIGURE="
 --disable-iconv
 --enable-small
 "
+
