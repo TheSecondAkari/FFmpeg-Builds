@@ -42,6 +42,7 @@ export FF_CONFIGURE="
 --enable-demuxer=m4v
 --enable-demuxer=flv
 --enable-demuxer=mp3
+--enable-demuxer=flac
 --disable-muxers
 --enable-muxer=flv
 --enable-muxer=mp4
@@ -65,4 +66,5 @@ export FF_CONFIGURE="
 --disable-iconv
 --enable-small
 "
+
 
